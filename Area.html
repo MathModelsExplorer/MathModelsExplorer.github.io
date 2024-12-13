@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Models Explorer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-image: url('https://i.imgur.com/SbNyVCq.jpg'); /* Use the direct image link */
+            background-size: cover; /* Ensures the image covers the entire background */
+            background-position: center; /* Centers the image */
+            background-repeat: no-repeat;
+            height: 100vh; /* Full height */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ff6c35; /* Title color */
+        }
+        h1 {
+            text-align: center; /* Center the title */
+            margin: 20px 0;
+        }
+        #canvas {
+            position: relative;
+            width: 80%;
+            height: auto;
+            margin: 20px auto;
+            display: flex; /* Align models next to each other */
+            flex-direction: row; /* Horizontal alignment */
+            justify-content: center; /* Center models */
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        }
+        .square {
+            opacity: 0.7; /* Set transparency to 70% */
+            width: 200px;
+            height: 200px;
+            display: grid;
+            border: 1px solid #333;
+            margin: 10px; /* Space between models */
+        }
+        .grid-item {
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+        .color-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 5px;
+            cursor: pointer;
+            border: 2px solid #000;
+        }
+        .red { background-color: rgba(255, 0, 0, 0.5); }
+        .blue { background-color: rgba(0, 0, 255, 0.5); }
+        .white { background-color: rgba(255, 255, 255, 0.5); border: 1px solid #000; }
+        .count-display {
+            text-align: center;
+            margin-top: 5px;
+            font-weight: bold;
+        }
+        .model-container {
+            display: flex;
+            flex-direction: column; /* Stack count displays below the models */
+            align-items: center; /* Center items */
+        }
+        .dimension-display {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: center; /* Center the text */
+        }
+        .area-perimeter-display {
+            margin-top: 20px;
+            font-weight: bold;
+            text-align: center;
+        }
+        #button-container {
+            display: flex; /* Use flexbox for horizontal alignment */
+            justify-content: center; /* Center the buttons */
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 10px; /* Space between buttons */
+            margin: 20px auto; /* Center the button container */
+        }
+        .color-container {
+            display: flex; /* Align colored circles in a row */
+            justify-content: center; /* Center the colored circles */
+            margin: 20px 0; /* Space above and below */
+        }
+        .dimension-container {
+            display: flex; /* Align dimensions in a row */
+            flex-direction: column; /* Stack vertically */
+            align-items: center; /* Center the dimensions */
+            margin: 20px 0; /* Space above and below */
+        }
+       
+    </style>
+</head>
+<body>
+
+<h1>Math Models Explorer</h1>
+<div class="color-container">
+    <div class="color-circle red" onclick="selectColor('red')"></div>
+    <div class="color-circle blue" onclick="selectColor('blue')"></div>
+    <div class="color-circle white" onclick="selectColor('white')"></div>
+</div>
+<div id="button-container" >
+    <button onclick="showHundredModel()">Show Hundred Model</button>
+    <button onclick="restart()">Restart</button>
+    <button onclick="undo()">Undo</button>
+    <button onclick="showDimensions('length')">Show Length</button>
+    <button onclick="showDimensions('width')">Show Width</button>
+    <button onclick="showAreaAndPerimeter()">Show Area and Perimeter</button>
+</div>
+
+<div id="canvas"></div>
+
+<div class="dimension-container">
+    <div class="dimension-display" id="lengthDisplay"></div>
+    <div class="dimension-display" id="widthDisplay"></div>
+</div>
+<div class="area-perimeter-display" id="areaDisplay"></div>
+<div class="area-perimeter-display" id="perimeterDisplay"></div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    let selectedColor = 'blue'; // Default selected color
+    let modelsCount = 0;
+    let lastActions = []; // Track the last actions for undo
+
+    // Counts for the Hundred Model
+    let coloredCountHundredModelRed = 0; 
+    let coloredCountHundredModelBlue = 0; 
+
+    function showHundredModel() {
+        if (modelsCount < 2) {
+            createHundredModel(modelsCount);
+            modelsCount++;
+        } else {
+            alert("Two models have already been displayed.");
+        }
+    }
+
+    function createHundredModel(modelIndex) {
+        const hundredModelContainer = document.createElement('div');
+        hundredModelContainer.classList.add('model-container');
+
+        const square = document.createElement('div');
+        square.classList.add('square');
+        square.style.gridTemplateColumns = 'repeat(10, 1fr)';
+        square.style.gridTemplateRows = 'repeat(10, 1fr)';
+
+        for (let i = 0; i < 100; i++) {
+            const item = document.createElement('div');
+            item.classList.add('grid-item');
+            item.onclick = () => {
+                colorSquare(item, selectedColor, 'hundred');
+                updateHundredModelCountDisplay(hundredModelContainer);
+            };
+            square.appendChild(item);
+        }
+
+        const countDisplay = document.createElement('div');
+        countDisplay.classList.add('count-display');
+        countDisplay.textContent = `Model ${modelIndex + 1}: Red: 0 | Blue: 0`;
+        hundredModelContainer.appendChild(square);
+        hundredModelContainer.appendChild(countDisplay);
+
+        canvas.appendChild(hundredModelContainer);
+    }
+
+    function colorSquare(square, color, modelType) {
+        const previousColor = square.style.backgroundColor;
+
+        if (color === 'white') {
+            // Reset to transparent (white)
+            if (previousColor === 'red') {
+                coloredCountHundredModelRed--;
+            } else if (previousColor === 'blue') {
+                coloredCountHundredModelBlue--;
+            }
+            square.style.backgroundColor = 'transparent';
+            lastActions.push({ square, color: 'transparent', modelType });
+            return; // Successfully reset
+        } else {
+            // Color the square with the selected color
+            if (previousColor !== color) {
+                // Update counts based on previous color
+                if (previousColor === 'red') {
+                    coloredCountHundredModelRed--;
+                } else if (previousColor === 'blue') {
+                    coloredCountHundredModelBlue--;
+                }
+                square.style.backgroundColor = color; // Set new color
+                lastActions.push({ square, color: previousColor, modelType }); // Store previous state for undo
+                if (color === 'red') {
+                    coloredCountHundredModelRed++;
+                } else if (color === 'blue') {
+                    coloredCountHundredModelBlue++;
+                }
+            }
+        }
+    }
+
+    function updateHundredModelCountDisplay(container) {
+        const countDisplay = container.querySelector('.count-display');
+        countDisplay.textContent = `Model 1: Red: ${coloredCountHundredModelRed} | Blue: ${coloredCountHundredModelBlue}`;
+    }
+
+    function selectColor(color) {
+        selectedColor = color;
+    }
+
+    function restart() {
+        canvas.innerHTML = '';
+        modelsCount = 0;
+        lastActions = []; // Reset actions
+        coloredCountHundredModelRed = 0; // Reset Hundred Model red count
+        coloredCountHundredModelBlue = 0; // Reset Hundred Model blue count
+        clearDimensionDisplays();
+        clearAreaAndPerimeterDisplays();
+    }
+
+    function undo() {
+        const lastAction = lastActions.pop();
+        if (lastAction) {
+            const { square, color, modelType } = lastAction;
+            square.style.backgroundColor = color; // Restore previous color
+
+            // Update counts based on the restored color
+            if (color === 'rgba(255, 0, 0, 0.5)') {
+                coloredCountHundredModelRed--;
+            } else if (color === 'rgba(0, 0, 255, 0.5)') {
+                coloredCountHundredModelBlue--;
+            }
+
+            // Update the respective model's count display
+            const modelContainer = square.closest('.model-container');
+            updateHundredModelCountDisplay(modelContainer);
+        } else {
+            alert("No actions to undo.");
+        }
+    }
+
+    function showDimensions(type) {
+        const totalColored = coloredCountHundredModelRed + coloredCountHundredModelBlue;
+
+        let length = 0;
+        let width = 0;
+
+        if (totalColored > 0) {
+            width = Math.floor(Math.sqrt(totalColored));
+            length = Math.ceil(totalColored / width);
+        }
+
+        if (type === 'length') {
+            document.getElementById('lengthDisplay').textContent = `Length of colored area: ${length}`;
+        } else if (type === 'width') {
+            document.getElementById('widthDisplay').textContent = `Width of colored area: ${width}`;
+        }
+    }
+
+    function showAreaAndPerimeter() {
+        const totalColored = coloredCountHundredModelRed + coloredCountHundredModelBlue;
+
+        const area = totalColored; // Each colored square represents 1 unit area
+        const perimeter = calculatePerimeter(totalColored); // Perimeter calculation
+
+        document.getElementById('areaDisplay').textContent = `Area of colored parts: ${area}`;
+        document.getElementById('perimeterDisplay').textContent = `Perimeter of colored parts: ${perimeter}`;
+    }
+
+    function calculatePerimeter(coloredCount) {
+        // Assuming colored squares form a rectangle (approximated for demonstration)
+        if (coloredCount === 0) return 0;
+        const width = Math.floor(Math.sqrt(coloredCount));
+        const length = Math.ceil(coloredCount / width);
+        return 2 * (length + width); // Perimeter formula
+    }
+
+    function clearDimensionDisplays() {
+        document.getElementById('lengthDisplay').textContent = '';
+        document.getElementById('widthDisplay').textContent = '';
+    }
+
+    function clearAreaAndPerimeterDisplays() {
+        document.getElementById('areaDisplay').textContent = '';
+        document.getElementById('perimeterDisplay').textContent = '';
+    }
+</script>
+
+</body>
+</html>

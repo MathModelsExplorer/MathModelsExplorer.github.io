@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Models Explorer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-image: url('https://i.imgur.com/JnzqXiG.jpg');
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Center content vertically */
+        }
+        h1 {
+            color: #ff6c35;
+            text-align: center;
+        }
+        #controls {
+            display: flex;
+            justify-content: center; /* Center buttons horizontally */
+            margin: 20px 0;
+        }
+        #canvas {
+            display: flex;
+            justify-content: center; /* Center models horizontally */
+            align-items: flex-start; /* Align models to the top */
+            margin: 20px auto;
+            flex-wrap: wrap;
+            max-width: 1000px; /* Optional: Limit the width of the canvas */
+        }
+        .model-container {
+            display: flex;
+            align-items: flex-start;
+            flex-direction: column;
+            opacity: 0.7;
+            position: relative;
+            margin: 10px;
+        }
+        .square, .tenth-model, .half-model, .third-model, .fourth-model {
+            width: 200px;
+            height: 200px;
+            display: grid;
+            border: 1px solid #333;
+        }
+        .grid-item {
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+        .color-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 5px;
+            cursor: pointer;
+            border: 2px solid #000;
+        }
+        .red { background-color: rgba(255, 0, 0, 0.5); }
+        .blue { background-color: rgba(0, 0, 255, 0.5); }
+        .white { background-color: rgba(255, 255, 255, 0.5); border: 1px solid #000; }
+        .count-display {
+            text-align: center;
+            margin-top: 5px;
+            font-weight: bold;
+            position: absolute;
+            bottom: -50px;
+        }
+        #stackedArea {
+            position: relative;
+            margin-top: 40px;
+            height: 200px;
+        }
+        .stacked-model {
+            position: absolute;
+            left: 0;
+            top: 0;
+            z-index: 1;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Math Models Explorer</h1>
+
+<div id="controls">
+    <div>
+        <div class="color-circle red" onclick="selectColor('rgba(255, 0, 0, 0.5)')"></div>
+        <div class="color-circle blue" onclick="selectColor('rgba(0, 0, 255, 0.5)')"></div>
+        <div class="color-circle white" onclick="selectColor('transparent')"></div>
+    </div>
+    <div>
+        <button onclick="showHundredModel()">Show Hundred Model</button>
+        <button onclick="showTenthModel()">Show Tenth Model</button>
+        <h2>Fractions</h2>
+        <button onclick="showHalfModel()">Show Half Model</button>
+        <button onclick="showThirdModel()">Show Third Model</button>
+        <button onclick="showFourthModel()">Show Fourth Model</button>
+        <button id="increaseDivisionsButton" onclick="increaseDivisions()" style="display:none;">Increase Divisions</button>
+        <button id="stackButton" onclick="stackModels()" style="display:none;">Stack Models</button>
+        <button id="rotateButton" onclick="rotateSelectedModel()" style="display:none;">Rotate Selected Model</button>
+        <button onclick="enableDragging()">Toggle Square Dragging</button>
+        <button onclick="restart()">Restart</button>
+        <button onclick="undo()">Undo</button>
+    </div>
+</div>
+
+<div id="canvas"></div>
+<div id="stackedArea"></div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const stackedArea = document.getElementById('stackedArea');
+    const stackButton = document.getElementById('stackButton');
+    const rotateButton = document.getElementById('rotateButton');
+    const increaseDivisionsButton = document.getElementById('increaseDivisionsButton');
+    let selectedColor = 'rgba(0, 0, 255, 0.5)';
+    let lastActions = [];
+    let draggingEnabled = false;
+    let selectedModel = null;
+
+    function showHundredModel() {
+        createModel(100, 'hundred', 10);
+    }
+
+    function showTenthModel() {
+        createModel(10, 'tenth', 10);
+    }
+
+    function showHalfModel() {
+        createModel(2, 'half', 2);
+    }
+
+    function showThirdModel() {
+        createModel(3, 'third', 3);
+    }
+
+    function showFourthModel() {
+        createModel(4, 'fourth', 4);
+    }
+
+    function createModel(count, modelType, divisions) {
+        const modelContainer = document.createElement('div');
+        modelContainer.classList.add('model-container');
+        modelContainer.dataset.modelType = modelType;
+
+        const model = document.createElement('div');
+        model.classList.add(modelType === 'hundred' ? 'square' :
+                          modelType === 'tenth' ? 'tenth-model' :
+                          modelType === 'half' ? 'half-model' :
+                          modelType === 'third' ? 'third-model' :
+                          'fourth-model');
+        model.style.gridTemplateColumns = `repeat(${divisions}, 1fr)`;
+
+        for (let i = 0; i < count; i++) {
+            const item = document.createElement('div');
+            item.classList.add('grid-item');
+            item.onclick = () => {
+                colorSquare(item, selectedColor, modelType);
+                selectModel(modelContainer);
+            };
+            model.appendChild(item);
+        }
+
+        const countDisplay = document.createElement('div');
+        countDisplay.classList.add('count-display');
+        countDisplay.textContent = `Model: Red: 0/${count} | Blue: 0/${count}`;
+        modelContainer.appendChild(model);
+        modelContainer.appendChild(countDisplay);
+
+        canvas.appendChild(modelContainer);
+        lastActions.push({ action: 'insert', modelContainer });
+    }
+
+    function selectColor(color) {
+        selectedColor = color; // Update selected color
+        const colorCircles = document.querySelectorAll('.color-circle');
+        colorCircles.forEach(circle => {
+            circle.style.border = circle.style.backgroundColor === color ? '2px solid #000' : '2px solid transparent';
+        });
+    }
+
+    function selectModel(modelContainer) {
+        selectedModel = modelContainer;
+        rotateButton.style.display = 'block';
+        stackButton.style.display = 'block';
+        increaseDivisionsButton.style.display = 'block'; // Show the increase divisions button
+    }
+
+    function increaseDivisions() {
+        if (selectedModel) {
+            const modelType = selectedModel.dataset.modelType;
+            const currentDivisions = selectedModel.querySelectorAll('.grid-item').length;
+            const newDivisions = currentDivisions + 1;
+
+            const model = selectedModel.querySelector('.square, .tenth-model, .half-model, .third-model, .fourth-model');
+            model.style.gridTemplateColumns = `repeat(${newDivisions}, 1fr)`; // Update grid layout
+
+            // Create a new grid item for the new division
+            const newItem = document.createElement('div');
+            newItem.classList.add('grid-item');
+            newItem.onclick = () => {
+                colorSquare(newItem, selectedColor, modelType);
+                selectModel(selectedModel);
+            };
+            model.appendChild(newItem);
+
+            // Update the count display
+            updateModelCountDisplay(selectedModel, modelType, newDivisions);
+
+            lastActions.push({ action: 'increase', modelContainer: selectedModel });
+        } else {
+            alert("Please select a model to increase divisions.");
+        }
+    }
+
+    function updateModelCountDisplay(container, modelType, totalCount) {
+        const coloredRed = Array.from(container.querySelectorAll('.grid-item')).filter(item => item.style.backgroundColor === 'rgba(255, 0, 0, 0.5)').length;
+        const coloredBlue = Array.from(container.querySelectorAll('.grid-item')).filter(item => item.style.backgroundColor === 'rgba(0, 0, 255, 0.5)').length;
+        const countDisplay = container.querySelector('.count-display');
+        countDisplay.textContent = `Model: Red: ${coloredRed}/${totalCount} | Blue: ${coloredBlue}/${totalCount}`;
+    }
+
+    function stackModels() {
+        if (selectedModel) {
+            const clonedModel = selectedModel.cloneNode(true);
+            clonedModel.classList.add('stacked-model');
+            stackedArea.appendChild(clonedModel);
+            lastActions.push({ action: 'stack', modelContainer: clonedModel });
+        } else {
+            alert("Please select a model to stack.");
+        }
+    }
+
+    function rotateSelectedModel() {
+        if (selectedModel) {
+            const currentRotation = selectedModel.querySelector('.square, .tenth-model, .half-model, .third-model, .fourth-model').style.transform || 'rotate(0deg)';
+            const currentAngle = parseFloat(currentRotation.replace('rotate(', '').replace('deg)', '')) || 0;
+            const newAngle = (currentAngle + 90) % 360;
+            selectedModel.querySelector('.square, .tenth-model, .half-model, .third-model, .fourth-model').style.transform = `rotate(${newAngle}deg)`;
+            lastActions.push({ action: 'rotate', modelContainer: selectedModel });
+        } else {
+            alert("Please select a model to rotate.");
+        }
+    }
+
+    function colorSquare(square, color, modelType) {
+        const previousColor = square.style.backgroundColor;
+
+        if (color === 'transparent') {
+            square.style.backgroundColor = 'transparent';
+            if (previousColor === 'rgba(255, 0, 0, 0.5)') {
+                updateColoredCount(-1); // Decrease colored count for red
+            } else if (previousColor === 'rgba(0, 0, 255, 0.5)') {
+                updateColoredCount(-1); // Decrease colored count for blue
+            }
+            lastActions.push({ action: 'color', square, previousColor, modelType });
+            return;
+        } else {
+            if (previousColor !== color) {
+                square.style.backgroundColor = color;
+                if (color === 'rgba(255, 0, 0, 0.5)') {
+                    updateColoredCount(1); // Increase colored count for red
+                } else if (color === 'rgba(0, 0, 255, 0.5)') {
+                    updateColoredCount(1); // Increase colored count for blue
+                } else if (color === 'rgba(255, 255, 255, 0.5)') {
+                    updateColoredCount(-1); // Decrease colored count for white
+                }
+                lastActions.push({ action: 'color', square, previousColor, modelType });
+            }
+        }
+        updateModelCountDisplay(square.closest('.model-container'), modelType, square.closest('.model-container').querySelectorAll('.grid-item').length);
+    }
+
+    function updateColoredCount(change) {
+        const modelContainer = selectedModel;
+        const totalCount = modelContainer.querySelectorAll('.grid-item').length;
+        updateModelCountDisplay(modelContainer, modelContainer.dataset.modelType, totalCount);
+    }
+
+    function undo() {
+        const lastAction = lastActions.pop();
+        if (lastAction) {
+            switch (lastAction.action) {
+                case 'insert':
+                    canvas.removeChild(lastAction.modelContainer);
+                    break;
+                case 'stack':
+                    stackedArea.removeChild(lastAction.modelContainer);
+                    break;
+                case 'rotate':
+                    const currentRotation = lastAction.modelContainer.querySelector('.square, .tenth-model, .half-model, .third-model, .fourth-model').style.transform || 'rotate(0deg)';
+                    const currentAngle = parseFloat(currentRotation.replace('rotate(', '').replace('deg)', '')) || 0;
+                    const newAngle = (currentAngle - 90) % 360;
+                    lastAction.modelContainer.querySelector('.square, .tenth-model, .half-model, .third-model, .fourth-model').style.transform = `rotate(${newAngle}deg)`;
+                    break;
+                case 'color':
+                    lastAction.square.style.backgroundColor = lastAction.previousColor;
+                    updateModelCountDisplay(lastAction.square.closest('.model-container'), lastAction.modelType, lastAction.square.closest('.model-container').querySelectorAll('.grid-item').length);
+                    break;
+                case 'increase':
+                    const previousDivisions = lastAction.modelContainer.querySelectorAll('.grid-item').length - 1;
+                    lastAction.modelContainer.querySelector('.square, .tenth-model, .half-model, .third-model, .fourth-model').style.gridTemplateColumns = `repeat(${previousDivisions}, 1fr)`;
+                    lastAction.modelContainer.querySelector('.grid-item:last-child').remove();
+                    updateModelCountDisplay(lastAction.modelContainer, lastAction.modelContainer.dataset.modelType, previousDivisions);
+                    break;
+            }
+        } else {
+            alert("No actions to undo.");
+        }
+    }
+
+    function enableDragging() {
+        draggingEnabled = !draggingEnabled;
+        const message = draggingEnabled ? "Square dragging enabled!" : "Square dragging disabled!";
+        alert(message);
+        
+        const gridItems = document.querySelectorAll('.grid-item');
+        gridItems.forEach(item => {
+            if (draggingEnabled) {
+                item.setAttribute('draggable', true);
+                item.addEventListener('dragstart', dragStart);
+                item.addEventListener('dragend', dragEnd);
+                item.addEventListener('dragover', dragOver);
+                item.addEventListener('drop', drop);
+            } else {
+                item.removeAttribute('draggable');
+                item.removeEventListener('dragstart', dragStart);
+                item.removeEventListener('dragend', dragEnd);
+                item.removeEventListener('dragover', dragOver);
+                item.removeEventListener('drop', drop);
+            }
+        });
+    }
+
+    function dragStart(e) {
+        e.dataTransfer.setData('text/plain', e.target.style.backgroundColor);
+        e.target.classList.add('dragging');
+        setTimeout(() => {
+            e.target.style.display = 'none';
+        }, 0);
+    }
+
+    function dragEnd(e) {
+        e.target.classList.remove('dragging');
+        e.target.style.display = 'block';
+    }
+
+    function dragOver(e) {
+        e.preventDefault();
+    }
+
+    function drop(e) {
+        e.preventDefault();
+        const color = e.dataTransfer.getData('text/plain');
+        const targetItem = e.target;
+
+        if (targetItem.classList.contains('grid-item')) {
+            targetItem.style.backgroundColor = color;
+            lastActions.push({ action: 'drag', targetItem, originalSquareColor: color });
+        }
+    }
+
+    function restart() {
+        canvas.innerHTML = '';
+        stackedArea.innerHTML = '';
+        selectedColor = 'rgba(0, 0, 255, 0.5)';
+        lastActions = [];
+        alert("The model has been reset to its original state.");
+    }
+</script>
+
+</body>
+</html>

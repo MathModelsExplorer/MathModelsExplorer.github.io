@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Models Explorer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-image: url('https://i.imgur.com/SbNyVCq.jpg'); /* Use the direct image link */
+            background-size: cover; /* Ensures the image covers the entire background */
+            background-position: center; /* Centers the image */
+            background-repeat: no-repeat;
+            height: 100vh; /* Full height */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ff6c35; /* Title color */
+        }
+        h1 {
+            margin: 20px;
+            text-align: center;
+        }
+        #button-container {
+            display: flex; /* Use flexbox for horizontal alignment */
+            flex-wrap: wrap; /* Allow wrapping if necessary */
+            gap: 10px; /* Space between buttons */
+            margin-bottom: 20px; /* Space below the button container */
+        }
+        #canvas {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            margin: 20px auto;
+            flex-wrap: wrap;
+        }
+        .model-container {
+            display: flex;
+            align-items: flex-start;
+            flex-direction: column;
+            opacity: 0.7;
+            position: relative;
+            margin: 10px;
+        }
+        .square, .tenth-model {
+            opacity: 0.7;
+            transition: transform 0.3s;
+            transform-origin: center;
+        }
+        .square {
+            width: 200px;
+            height: 200px;
+            display: grid;
+            border: 1px solid #333;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+        }
+        .tenth-model {
+            width: 200px;
+            height: 200px;
+            display: grid;
+            border: 1px solid #333;
+            grid-template-columns: repeat(10, 1fr);
+        }
+        .grid-item {
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+        .color-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 5px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .red { background-color: rgba(255, 0, 0, 0.5); }
+        .blue { background-color: rgba(0, 0, 255, 0.5); }
+        .white { background-color: rgba(255, 255, 255, 0.5); border: 1px solid #000; }
+        .count-display {
+            text-align: center;
+            margin-top: 5px;
+            font-weight: bold;
+            position: absolute;
+            bottom: -50px;
+        }
+        #stackedArea {
+            position: relative;
+            margin-top: 40px;
+            height: 200px;
+        }
+        .stacked-model {
+            position: absolute;
+            left: 0;
+            top: 0;
+            z-index: 1;
+            opacity: 0.5;
+        }
+        .dragging {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Math Models Explorer</h1>
+<div>
+    <div class="color-circle red" onclick="selectColor('rgba(255, 0, 0, 0.5)', this)"></div>
+    <div class="color-circle blue" onclick="selectColor('rgba(0, 0, 255, 0.5)', this)"></div>
+    <div class="color-circle white" onclick="selectColor('transparent', this)"></div>
+</div>
+
+<div id="button-container">
+    <button onclick="showHundredModel()">Show Hundred Model</button>
+    <button onclick="showTenthModel()">Show Tenth Model</button>
+    <button id="stackButton" onclick="stackModels()" style="display:none;">Stack Models</button>
+    <button id="rotateButton" onclick="rotateSelectedModel()" style="display:none;">Rotate Selected Model</button>
+    <button onclick="enableDragging()">Toggle Square Dragging</button>
+    <button onclick="restart()">Restart</button>
+    <button onclick="undo()">Undo</button>
+</div>
+
+<div id="canvas"></div>
+<div id="stackedArea"></div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const stackedArea = document.getElementById('stackedArea');
+    const stackButton = document.getElementById('stackButton');
+    const rotateButton = document.getElementById('rotateButton');
+    let selectedColor = 'rgba(0, 0, 255, 0.5)';
+    let lastActions = [];
+    let draggingEnabled = false;
+    let selectedModel = null;
+
+    function showHundredModel() {
+        createModel(100, 'hundred');
+    }
+
+    function showTenthModel() {
+        createModel(10, 'tenth');
+    }
+
+    function createModel(count, modelType) {
+        const modelContainer = document.createElement('div');
+        modelContainer.classList.add('model-container');
+        modelContainer.dataset.modelType = modelType;
+
+        const model = document.createElement('div');
+        model.classList.add(modelType === 'hundred' ? 'square' : 'tenth-model');
+
+        for (let i = 0; i < count; i++) {
+            const item = document.createElement('div');
+            item.classList.add('grid-item');
+            item.onclick = () => {
+                colorSquare(item, selectedColor, modelType);
+                selectModel(modelContainer);
+            };
+            model.appendChild(item);
+        }
+
+        const countDisplay = document.createElement('div');
+        countDisplay.classList.add('count-display');
+        countDisplay.textContent = `Model: Red: 0.00 | Blue: 0.00`;
+        modelContainer.appendChild(model);
+        modelContainer.appendChild(countDisplay);
+
+        canvas.appendChild(modelContainer);
+        lastActions.push({ action: 'insert', modelContainer });
+    }
+
+    function selectModel(modelContainer) {
+        selectedModel = modelContainer;
+        rotateButton.style.display = 'block';
+        stackButton.style.display = 'block';
+    }
+
+    function selectColor(color, element) {
+        selectedColor = color;
+        const colorCircles = document.querySelectorAll('.color-circle');
+        colorCircles.forEach(circle => {
+            circle.style.border = circle === element ? '2px solid #000' : '2px solid transparent';
+        });
+    }
+
+    function stackModels() {
+        if (selectedModel) {
+            const clonedModel = selectedModel.cloneNode(true);
+            clonedModel.classList.add('stacked-model');
+            clonedModel.style.top = `0px`;
+            clonedModel.style.left = `0px`;
+            stackedArea.appendChild(clonedModel);
+            lastActions.push({ action: 'stack', modelContainer: clonedModel });
+        } else {
+            alert("Please select a model to stack.");
+        }
+    }
+
+    function rotateSelectedModel() {
+        if (selectedModel) {
+            const currentRotation = selectedModel.querySelector('.square, .tenth-model').style.transform || 'rotate(0deg)';
+            const currentAngle = parseFloat(currentRotation.replace('rotate(', '').replace('deg)', '')) || 0;
+            const newAngle = (currentAngle + 90) % 360;
+            selectedModel.querySelector('.square, .tenth-model').style.transform = `rotate(${newAngle}deg)`;
+            lastActions.push({ action: 'rotate', modelContainer: selectedModel });
+        } else {
+            alert("Please select a model to rotate.");
+        }
+    }
+
+    function colorSquare(square, color, modelType) {
+        const previousColor = square.style.backgroundColor;
+
+        if (color === 'transparent') {
+            square.style.backgroundColor = 'transparent';
+            lastActions.push({ action: 'color', square, previousColor, modelType });
+            return;
+        } else {
+            if (previousColor !== color) {
+                square.style.backgroundColor = color;
+                lastActions.push({ action: 'color', square, previousColor, modelType });
+            }
+        }
+        updateModelCountDisplay(square.closest('.model-container'), modelType);
+    }
+
+    function updateModelCountDisplay(container, modelType) {
+        const coloredRed = Array.from(container.querySelectorAll('.grid-item')).filter(item => item.style.backgroundColor === 'rgba(255, 0, 0, 0.5)').length;
+        const coloredBlue = Array.from(container.querySelectorAll('.grid-item')).filter(item => item.style.backgroundColor === 'rgba(0, 0, 255, 0.5)').length;
+        const countDisplay = container.querySelector('.count-display');
+        countDisplay.textContent = `Model: Red: ${(coloredRed / (modelType === 'hundred' ? 100 : 10)).toFixed(2)} | Blue: ${(coloredBlue / (modelType === 'hundred' ? 100 : 10)).toFixed(2)}`;
+    }
+
+    function undo() {
+        const lastAction = lastActions.pop();
+        if (lastAction) {
+            switch (lastAction.action) {
+                case 'insert':
+                    canvas.removeChild(lastAction.modelContainer);
+                    break;
+                case 'stack':
+                    stackedArea.removeChild(lastAction.modelContainer);
+                    break;
+                case 'rotate':
+                    const currentRotation = lastAction.modelContainer.querySelector('.square, .tenth-model').style.transform || 'rotate(0deg)';
+                    const currentAngle = parseFloat(currentRotation.replace('rotate(', '').replace('deg)', '')) || 0;
+                    const newAngle = (currentAngle - 90) % 360;
+                    lastAction.modelContainer.querySelector('.square, .tenth-model').style.transform = `rotate(${newAngle}deg)`;
+                    break;
+                case 'color':
+                    lastAction.square.style.backgroundColor = lastAction.previousColor;
+                    updateModelCountDisplay(lastAction.square.closest('.model-container'), lastAction.modelType);
+                    break;
+                case 'drag':
+                    const { targetItem, originalSquareColor } = lastAction;
+                    targetItem.style.backgroundColor = originalSquareColor;
+                    break;
+            }
+        } else {
+            alert("No actions to undo.");
+        }
+    }
+
+    function enableDragging() {
+        draggingEnabled = !draggingEnabled;
+        const message = draggingEnabled ? "Square dragging enabled!" : "Square dragging disabled!";
+        alert(message);
+        
+        const gridItems = document.querySelectorAll('.grid-item');
+        gridItems.forEach(item => {
+            if (draggingEnabled) {
+                item.setAttribute('draggable', true);
+                item.addEventListener('dragstart', dragStart);
+                item.addEventListener('dragend', dragEnd);
+                item.addEventListener('dragover', dragOver);
+                item.addEventListener('drop', drop);
+            } else {
+                item.removeAttribute('draggable');
+                item.removeEventListener('dragstart', dragStart);
+                item.removeEventListener('dragend', dragEnd);
+                item.removeEventListener('dragover', dragOver);
+                item.removeEventListener('drop', drop);
+            }
+        });
+    }
+
+    function dragStart(e) {
+        e.dataTransfer.setData('text/plain', e.target.style.backgroundColor);
+        e.target.classList.add('dragging');
+        setTimeout(() => {
+            e.target.style.display = 'none';
+        }, 0);
+        const originalSquareColor = e.target.style.backgroundColor;
+        lastActions.push({ action: 'drag', targetItem: e.target, originalSquareColor });
+    }
+
+    function dragEnd(e) {
+        e.target.classList.remove('dragging');
+        e.target.style.display = 'block';
+    }
+
+    function dragOver(e) {
+        e.preventDefault();
+    }
+
+    function drop(e) {
+        e.preventDefault();
+        const color = e.dataTransfer.getData('text/plain');
+        const targetItem = e.target;
+
+        if (targetItem.classList.contains('grid-item')) {
+            const originalSquare = document.querySelector(`.grid-item[style*='${color}']`);
+            const originalColor = originalSquare.style.backgroundColor;
+            targetItem.style.backgroundColor = color;
+            originalSquare.style.backgroundColor = 'transparent';
+            updateModelCountDisplay(targetItem.closest('.model-container'), targetItem.closest('.square') ? 'hundred' : 'tenth');
+            lastActions.push({ action: 'drag', targetItem, originalSquareColor: originalColor });
+        }
+    }
+
+    function restart() {
+        // Clear canvas and stacked area
+        canvas.innerHTML = '';
+        stackedArea.innerHTML = '';
+        // Reset variables
+        selectedColor = 'rgba(0, 0, 255, 0.5)';
+        lastActions = [];
+        selectedModel = null;
+        stackButton.style.display = 'none';
+        rotateButton.style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
